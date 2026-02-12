@@ -60,7 +60,7 @@ class OctreeNode:
     
     A node can be:
     1. Empty (no bodies)
-    2. Leaf with one body (contains body_index)
+    2. is_leaf with one body (contains body_index)
     3. Internal node with 8 children (subdivided)
     """
     
@@ -81,7 +81,7 @@ class OctreeNode:
         self.com_x = 0.0
         self.com_y = 0.0
         self.com_z = 0.0
-        self.leaf = True
+        self.is_leaf = True
         self.body_index = -1    # no body in there
         self.children = [None]*8    # making a list of 8 empty slots
     
@@ -161,8 +161,8 @@ def insert_body(node, body_index):
     
     Algorithm:
     1. Update this node's center of mass and total mass
-    2. If node is empty leaf: place body here
-    3. If node is leaf with a body: subdivide and redistribute both bodies
+    2. If node is empty is_leaf: place body here
+    3. If node is is_leaf with a body: subdivide and redistribute both bodies
     4. If node is internal: insert into appropriate child
     
     Parameters:
@@ -191,22 +191,22 @@ def insert_body(node, body_index):
     # node.total_mass = new_mass
     
     
-    # TODO: CASE 1 - This is an empty leaf
-    # If node.is_leaf is True AND node.body_index is -1:
+    # TODO: CASE 1 - This is an empty is_leaf
+    # If node.is_is_leaf is True AND node.body_index is -1:
     #     Just place the body here
     #     node.body_index = body_index
     #     return
     
     
-    # TODO: CASE 2 - This leaf already has a body, need to subdivide!
-    # If node.is_leaf is True AND node.body_index is NOT -1:
+    # TODO: CASE 2 - This is_leaf already has a body, need to subdivide!
+    # If node.is_is_leaf is True AND node.body_index is NOT -1:
     #     
     #     Step 1: Get the existing body's index
     #     old_body_index = node.body_index
     #     
-    #     Step 2: Mark this node as no longer a leaf
+    #     Step 2: Mark this node as no longer a is_leaf
     #     node.body_index = -1
-    #     node.is_leaf = False
+    #     node.is_is_leaf = False
     #     
     #     Step 3: Get the old body's position
     #     old_x = p_x[old_body_index]
@@ -292,7 +292,7 @@ def calculate_force_barnes_hut(node, body_index):
     2. Calculate distance from body to node's center of mass
     3. Calculate s/d ratio (node width / distance)
     4. Decision:
-       - If s/d < theta OR node is a leaf: treat as single body
+       - If s/d < theta OR node is a is_leaf: treat as single body
        - Else: recursively calculate from all 8 children
     
     Parameters:
@@ -303,79 +303,59 @@ def calculate_force_barnes_hut(node, body_index):
         (ax, ay, az): Acceleration components in m/s²
     """
     
-    # TODO: BASE CASE - Empty node
-    # if node is None or node.total_mass == 0:
-    #     return 0.0, 0.0, 0.0
+    if node is None or node.total_mass == 0:
+        return 0.0, 0.0, 0.0
     
+    bx = p_x[body_index]
+    by = p_y[body_index]
+    bz = p_z[body_index]
     
-    # TODO: Get the body's position
-    # bx = p_x[body_index]
-    # by = p_y[body_index]
-    # bz = p_z[body_index]
+
+    # Vector from body to node's center of mass
+    dx = node.com_x - bx
+    dy = node.com_y - by
+    dz = node.com_z - bz
     
+    dist_sq = dx*dx + dy*dy + dz*dz + softening*softening
+    dist = math.sqrt(dist_sq)
     
-    # TODO: Calculate vector from body to node's center of mass
-    # dx = node.com_x - bx
-    # dy = ?
-    # dz = ?
+    if dist < 1e-10:
+        return 0.0, 0.0, 0.0
+
+
+    ratio = node.width / dist #s/d formula
+
+    # Depending on the ratio, we either think of the node as a single body or of part of a cluster
     
+    # Option A: Approximating
+    if ratio < theta or (node.is_leaf and node.body_index != -1):
+        
+        if node.is_is_leaf and node.body_index == body_index:
+            return 0.0, 0.0, 0.0
+         
+    # Calculate force using node's total mass at center of mass
+        dist_cubed = dist_sq * dist
+        force_factor = G * node.total_mass / dist_cubed
+
+        ax = force_factor * dx
+        ay = force_factor * dy
+        az = force_factor * dz     
+        return ax, ay, az
     
-    # TODO: Calculate distance with softening
-    # dist_sq = dx*dx + dy*dy + dz*dz + softening*softening
-    # dist = math.sqrt(dist_sq)
+    # Option B: No, need more precision - recurse to children
+    else:
+        ax_total = 0.0
+        ay_total = 0.0
+        az_total = 0.0
+     
+        for child in node.children:
+            if child is not None:
+                ax_child, ay_child, az_child = calculate_force_barnes_hut(child, body_index)
+                ax_total += ax_child
+                ay_total += ay_child
+                az_total += az_child
     
-    
-    # TODO: Avoid self-interaction
-    # If distance is very small (< 1e-10), this is the same body
-    # if dist < 1e-10:
-    #     return 0.0, 0.0, 0.0
-    
-    
-    # TODO: Calculate s/d ratio
-    # s = node width, d = distance
-    # ratio = node.width / dist
-    
-    
-    # TODO: DECISION - Should we approximate this node as a single body?
-    
-    # OPTION A: Yes, approximate (if ratio < theta OR this is a leaf)
-    # if ratio < theta or (node.is_leaf and node.body_index != -1):
-    #     
-    #     Don't calculate force from a body on itself
-    #     if node.is_leaf and node.body_index == body_index:
-    #         return 0.0, 0.0, 0.0
-    #     
-    #     Calculate force using node's total mass at center of mass
-    #     dist_cubed = dist_sq * dist
-    #     force_factor = G * node.total_mass / dist_cubed
-    #     
-    #     ax = force_factor * dx
-    #     ay = force_factor * dy
-    #     az = force_factor * dz
-    #     
-    #     return ax, ay, az
-    
-    
-    # OPTION B: No, need more precision - recurse to children
-    # else:
-    #     
-    #     Initialize total acceleration
-    #     ax_total = 0.0
-    #     ay_total = 0.0
-    #     az_total = 0.0
-    #     
-    #     Loop through all 8 children
-    #     for child in node.children:
-    #         if child is not None:
-    #             Recursively calculate force from this child
-    #             ax_child, ay_child, az_child = calculate_force_barnes_hut(child, body_index)
-    #             
-    #             Add to total
-    #             ax_total += ax_child
-    #             ay_total += ay_child
-    #             az_total += az_child
-    #     
-    #     return ax_total, ay_total, az_total
+        return ax_total, ay_total, az_total
     
     pass
 
