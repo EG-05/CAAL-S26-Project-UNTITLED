@@ -161,8 +161,8 @@ def insert_body(node, body_index):
     
     Algorithm:
     1. Update this node's center of mass and total mass
-    2. If node is empty is_leaf: place body here
-    3. If node is is_leaf with a body: subdivide and redistribute both bodies
+    2. If node is empty leaf: place body here
+    3. If node is leaf with a body: subdivide and redistribute both bodies
     4. If node is internal: insert into appropriate child
     
     Parameters:
@@ -170,73 +170,75 @@ def insert_body(node, body_index):
         body_index: Index of the body in the global arrays (p_x, p_y, p_z, m)
     """
     
-    # TODO: Get the body's position and mass from global arrays
-    # x = p_x[body_index]
-    # y = p_y[body_index]
-    # z = p_z[body_index]
-    # mass = m[body_index]
+    # Get the body's position and mass from global arrays
+    x = p_x[body_index]
+    y = p_y[body_index]
+    z = p_z[body_index]
+    mass = m[body_index] 
+   
+    
+    # updating the NODE's centres of mass (COM)
+    
+    old_mass = node.total_mass
+    new_mass = old_mass + mass
+    
+    if new_mass > 0 : 
+        node.com_x = (node.com_x * old_mass + x * mass) /new_mass 
+        node.com_y = (node.com_y * old_mass + y * mass) /new_mass 
+        node.com_z = (node.com_z * old_mass + z * mass) /new_mass 
+    
+    node.total_mass = new_mass 
+
+    # Case 1: LEAF EMPTY -> just place body here 
+    if node.is_leaf and node.body_index == -1: 
+        node.body_index = body_index 
+        return  
+    
+    # Case 2: Leaf already has a body, SUBDIVIDE time 
+    if node.is_leaf and node.body_index != -1:
+    
+        #Step 1: Get the EXISITNG body's index
+        old_body_index = node.body_index
+       
+         
+        #Step 2: mark this node as NO longer leaf 
+        node.body_index = -1
+        node.is_leaf = False
+
+        #Step 3: Get the old body's position
+        old_x = p_x[old_body_index]
+        old_y = p_y[old_body_index]
+        old_z = p_z[old_body_index]
+    
+        #Step 4 : which octant the OLD body belongs to 
+        oct_old = node.get_octant (old_x, old_y, old_z)
+
+        #Step 5: create a chils for THAT octant 
+        bounds_old = node.get_octant_bounds(oct_old)
+        node.children[oct_old] = OctreeNode(*bounds_old)
+    
+        #Step 6: Recursively insert the old body into the child
+        # -- NO children so no need check if children none
+        # NEW internal node
+        insert_body(node.children[oct_old], old_body_index)
     
     
-    # TODO: Update this node's center of mass
-    # Use the formula: new_COM = (old_COM * old_mass + new_pos * new_mass) / (old_mass + new_mass)
-    # 
-    # old_mass = node.total_mass
-    # new_mass = old_mass + mass
-    # 
-    # if new_mass > 0:
-    #     node.com_x = (node.com_x * old_mass + x * mass) / new_mass
-    #     node.com_y = ?
-    #     node.com_z = ?
-    # 
-    # node.total_mass = new_mass
-    
-    
-    # TODO: CASE 1 - This is an empty is_leaf
-    # If node.is_is_leaf is True AND node.body_index is -1:
-    #     Just place the body here
-    #     node.body_index = body_index
-    #     return
-    
-    
-    # TODO: CASE 2 - This is_leaf already has a body, need to subdivide!
-    # If node.is_is_leaf is True AND node.body_index is NOT -1:
-    #     
-    #     Step 1: Get the existing body's index
-    #     old_body_index = node.body_index
-    #     
-    #     Step 2: Mark this node as no longer a is_leaf
-    #     node.body_index = -1
-    #     node.is_is_leaf = False
-    #     
-    #     Step 3: Get the old body's position
-    #     old_x = p_x[old_body_index]
-    #     old_y = ?
-    #     old_z = ?
-    #     
-    #     Step 4: Find which octant the old body belongs to
-    #     octant = node.get_octant(old_x, old_y, old_z)
-    #     
-    #     Step 5: Create a child node for that octant
-    #     bounds = node.get_octant_bounds(octant)
-    #     node.children[octant] = OctreeNode(*bounds)
-    #     
-    #     Step 6: Recursively insert the old body into the child
-    #     insert_body(node.children[octant], old_body_index)
-    
-    
-    # TODO: CASE 3 - This is an internal node
+    # CASE 3:  This is an internal node (already, exsitingly )
+    # --> RECURSE INTO CORRECT CHILD A
+
     # Find which child octant the new body should go into
-    # octant = node.get_octant(x, y, z)
-    # 
+    oct = node.get_octant(x, y, z)
+    
     # If child doesn't exist, create it
-    # if node.children[octant] is None:
-    #     bounds = node.get_octant_bounds(octant)
-    #     node.children[octant] = OctreeNode(*bounds)
-    # 
+    if node.children[oct] is None:
+         bounds = node.get_octant_bounds(oct)
+         node.children[oct] = OctreeNode(*bounds)
+    
     # Recursively insert into the child
-    # insert_body(node.children[octant], body_index)
+    insert_body(node.children[oct], body_index)
     
     pass
+
 
 
 def build_tree():
