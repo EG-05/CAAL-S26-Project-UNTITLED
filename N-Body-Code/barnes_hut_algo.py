@@ -47,7 +47,7 @@ with open('solar300.csv', mode='r') as file:
         a_z.append(0)
 
 N = len(m)
-print(f"Loaded {N} bodies")
+print(f"Loaded {N} bodies") 
 
 # ============================================
 # OCTREE NODE CLASS
