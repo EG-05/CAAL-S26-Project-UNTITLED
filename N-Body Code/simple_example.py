@@ -41,7 +41,43 @@ N = len(m)
 # Students write their physics code here
 def calculate_acceleration():
     """Calculate gravitational forces and update accelerations"""
-    pass
+
+    #resetting all accelerations to zero
+    for i in range(N):
+        a_x[i] = 0.0
+        a_y[i] = 0.0
+        a_z[i] = 0.0
+
+    #calculate forces between all pairs
+    #use i+1 to avoid calculating the same pair twice
+    for i in range(N):  # for each body i
+        for j in range(i+1, N): # check against bodies j (where j>i)
+
+            # we will now calculate vector i from j
+            dx = p_x[j] - p_x[i]    #Distance in x direction
+            dy = p_y[j] - p_y[i]    #distance in y direction
+            dz = p_z[j] - p_z[i]    #distance in z direction
+
+            dist_sq = dx**2 + dy**2 + dz**2 + softening**2  # softening prevents division by zero when bodies too close
+            dist = dist_sq**0.5     # this is to stablise dist
+            dist_cubed = dist**3
+
+            force_factor = G / dist_cubed   # G/r^3 -> unit force
+
+            # force component -> multiply by direction
+            fx = force_factor * dx
+            fy = force_factor * dy
+            fz = force_factor * dz
+
+            # apply to body i (pulled toward j)
+            a_x[i] += fx * m[j]     # F = ma, a = F/m = G*m_j*dx/r^3
+            a_y[i] += fy * m[j]     
+            a_z[i] += fz * m[j]
+
+            # apply to body j (pulled toward i -> opp direction)
+            a_x[j] -= fx * m[i]
+            a_y[j] -= fy * m[i]
+            a_z[j] -= fz * m[i]
 
 def kick():
     """Update velocities based on accelerations"""
