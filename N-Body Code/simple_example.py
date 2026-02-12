@@ -4,8 +4,9 @@ from nbody_visualizer import draw_gui
 
 # Simulation parameters
 G = 6.67430e-11  
-dt = 8640
+dt = 2*8640
 softening = 1e9
+half_time_step = 0.5
 
 # Particle data - you can create classes for these as well or a single list
 #I have them separated in lists.
@@ -83,18 +84,18 @@ def kick():
     """Update velocities based on accelerations"""
     "Each kick -> velocity changes with respect to acceleration by half timestep"
     for i in range(N): 
-        v_x[i] = a_x[i]*dt*0.5
-        v_y[i] = a_y[i]*dt*0.5 
-        v_z[i] = a_z[i]*dt*0.5
+        v_x[i] += a_x[i]*dt*half_time_step
+        v_y[i] += a_y[i]*dt*half_time_step
+        v_z[i] += a_z[i]*dt*half_time_step
     pass
 
 def drift():
     """Update positions based on velocities"""
     "Each drift -> position changes with respect to velocity by half timestep"
     for i in range(N): 
-        p_x[i] += v_x[i]*dt*0.5
-        p_y[i] += v_y[i]*dt*0.5 
-        p_z[i] += v_z[i]*dt*0.5
+        p_x[i] += v_x[i]*dt*half_time_step
+        p_y[i] += v_y[i]*dt*half_time_step
+        p_z[i] += v_z[i]*dt*half_time_step
     pass
 
 
