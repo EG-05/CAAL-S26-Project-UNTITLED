@@ -35,6 +35,7 @@ with open('solar300.csv', mode='r') as file:
         a_y.append(0)
         a_z.append(0)
 
+
 N = len(m)
 
 # Students write their physics code here
@@ -44,11 +45,22 @@ def calculate_acceleration():
 
 def kick():
     """Update velocities based on accelerations"""
+    "Each kick -> velocity changes with respect to acceleration by half timestep"
+    for i in range(N): 
+        v_x[i] = a_x[i]*dt*0.5
+        v_y[i] = a_y[i]*dt*0.5 
+        v_z[i] = a_z[i]*dt*0.5
     pass
 
 def drift():
     """Update positions based on velocities"""
+    "Each drift -> position changes with respect to velocity by half timestep"
+    for i in range(N): 
+        p_x[i] += v_x[i]*dt*0.5
+        p_y[i] += v_y[i]*dt*0.5 
+        p_z[i] += v_z[i]*dt*0.5
     pass
+
 
 # Main simulation loop - students just call draw_gui() in their while loop!
 while draw_gui(p_x, p_y, p_z):
