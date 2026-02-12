@@ -35,12 +35,16 @@ a_z = []    # z accelerations
 with open('solar300.csv', mode='r') as file:
     reader = csv.DictReader(file)
     for row in reader:
-        # TODO: Load data from CSV
-        # m.append(float(row["mass"]))
-        # p_x.append(...)
-        # ... continue for all columns
-        # Initialize accelerations to 0
-        pass
+        m.append(float(row["mass"]))
+        p_x.append(float(row["distanceX"]))
+        p_y.append(float(row["distanceY"]))
+        p_z.append(float(row["distanceZ"]))
+        v_x.append(float(row["velocityX"]))
+        v_y.append(float(row["velocityY"]))
+        v_z.append(float(row["velocityZ"]))
+        a_x.append(0)
+        a_y.append(0)
+        a_z.append(0)
 
 N = len(m)
 print(f"Loaded {N} bodies")
