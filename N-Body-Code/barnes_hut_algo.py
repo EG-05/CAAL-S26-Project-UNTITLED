@@ -67,22 +67,22 @@ class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
         
         # min, max storing and center calc
-        self.x.min = x_min
-        self.y.min = y_min
-        self.z.min = z_min
-        self.x.max = x_max
-        self.y.max = y_max
-        self.z.max = z_max
-        self.center.x = (x_min + x_max)/2.0
-        self.center.y = (y_min + y_max)/2.0
-        self.center.z = (z_min + z_max)/2.0
+        self.x_min = x_min
+        self.y_min = y_min
+        self.z_min = z_min
+        self.x_max = x_max
+        self.y_max = y_max
+        self.z_max = z_max
+        self.center_x = (x_min + x_max)/2.0
+        self.center_y = (y_min + y_max)/2.0
+        self.center_z = (z_min + z_max)/2.0
         self.width = x_max - x_min      # not calculating all because cube so all will be equal
-        self.total.mass = 0.0
-        self.center.of.mass.x = 0.0
-        self.center.of.mass.y = 0.0
-        self.center.of.mass.z = 0.0
+        self.total_mass = 0.0
+        self.com_x = 0.0
+        self.com_y = 0.0
+        self.com_z = 0.0
         self.leaf = True
-        self.body.index = -1    # no body in there
+        self.body_index = -1    # no body in there
         self.children = [None]*8    # making a list of 8 empty slots
     
     def get_octant(self, x, y, z):
@@ -106,11 +106,11 @@ class OctreeNode:
             octant: Integer from 0 to 7
         """
         octant = 0
-        if x > self.center.x:   # if right add 1
+        if x > self.center_x:   # if right add 1
             octant += 1
-        if y > self.center.y:   # if top add 2
+        if y > self.center_y:   # if top add 2
             octant += 2
-        if z > self.center.z:   # if front add 4
+        if z > self.center_z:   # if front add 4
             octant += 4
         return octant
     
@@ -126,28 +126,28 @@ class OctreeNode:
         Returns:
             (x_min, x_max, y_min, y_max, z_min, z_max): Boundaries of the octant
         """
-        x_min = self.x.min
-        y_min = self.y.min
-        z_min = self.z.min
-        x_max = self.x.max
-        y_max = self.y.max
-        z_max = self.z.max
+        x_min = self.x_min
+        y_min = self.y_min
+        z_min = self.z_min
+        x_max = self.x_max
+        y_max = self.y_max
+        z_max = self.z_max
         
         # x_min -------- center_x -------- x_max -> dividing nodes
         if octant & 1:
-            x_min = self.center.x
+            x_min = self.center_x
         else:
-            x_max = self.center.x
+            x_max = self.center_x
 
         if octant & 2:
-            y_min = self.center.y
+            y_min = self.center_y
         else:
-            y_max = self.center.y
+            y_max = self.center_y
 
         if octant & 4:
-            z_min = self.center.z
+            z_min = self.center_z
         else:
-            z_max = self.center.z
+            z_max = self.center_z
         
         return x_min, x_max, y_min, y_max, z_min, z_max
 
@@ -252,40 +252,32 @@ def build_tree():
     Returns:
         root: The root OctreeNode of the tree
     """
+
+    x_min = min(p_x)
+    x_max = max(p_x)
+    y_min = min(p_y)
+    y_max = max(p_y)
+    z_min = min(p_z)
+    z_max = max(p_z)
     
-    # TODO: Find the minimum and maximum positions in each dimension
-    # x_min = min(p_x)
-    # x_max = max(p_x)
-    # y_min = ?
-    # y_max = ?
-    # z_min = ?
-    # z_max = ?
-    
-    
-    # TODO: Add padding so bodies aren't exactly on boundaries
+    # Add padding so bodies aren't exactly on boundaries
     # Calculate padding as 10% of the largest dimension
-    # max_range = max(x_max - x_min, y_max - y_min, z_max - z_min)
-    # padding = 0.1 * max_range
-    # 
-    # x_min -= padding
-    # x_max += padding
-    # y_min -= padding
-    # ... (add padding to all 6 boundaries)
+
+    max_range = max(x_max - x_min, y_max - y_min, z_max - z_min)
+    padding = 0.1 * max_range
+    x_min -= padding
+    y_min -= padding
+    z_min -= padding
+
+    x_max += padding
+    y_max += padding
+    z_max += padding
     
+    root = OctreeNode(x_min, x_max, y_min, y_max, z_min, z_max)
+    for i in range(N):
+        insert_body(root, i)
     
-    # TODO: Create the root node
-    # root = OctreeNode(x_min, x_max, y_min, y_max, z_min, z_max)
-    
-    
-    # TODO: Insert all bodies into the tree
-    # for i in range(N):
-    #     insert_body(root, i)
-    
-    
-    # TODO: Return the root node
-    # return root
-    
-    pass
+    return root
 
 # ============================================
 # FORCE CALCULATION FUNCTIONS
@@ -389,63 +381,27 @@ def calculate_force_barnes_hut(node, body_index):
 
 
 def calculate_acceleration():
-    """
-    Calculate accelerations for all bodies using Barnes-Hut algorithm.
-    
-    Algorithm:
-    1. Build the octree from current positions
-    2. For each body, use the tree to calculate acceleration
-    
-    This is called once per timestep.
-    """
-    
-    # TODO: Build the tree
-    # tree = build_tree()
-    
-    
-    # TODO: Calculate acceleration for each body
-    # for i in range(N):
-    #     Calculate force from the tree
-    #     a_x[i], a_y[i], a_z[i] = calculate_force_barnes_hut(tree, i)
-    
-    pass
+    tree = build_tree()
+    for i in range(N):
+        a_x[i], a_y[i], a_z[i] = calculate_force_barnes_hut(tree, i)
+
 
 # ============================================
 # LEAPFROG INTEGRATION
 # ============================================
 
 def kick():
-    """
-    KICK step: Update velocities by half timestep.
-    
-    Formula: v = v + a * (dt/2)
-    """
-    
-    # TODO: Loop through all bodies
-    # for i in range(N):
-    #     Update each velocity component
-    #     v_x[i] += a_x[i] * (dt / 2.0)
-    #     v_y[i] += ?
-    #     v_z[i] += ?
-    
-    pass
+    for i in range(N):
+        v_x[i] += a_x[i] * (dt/2.0)
+        v_y[i] += a_y[i] * (dt/2.0)
+        v_z[i] += a_z[i] * (dt/2.0)
 
 
 def drift():
-    """
-    DRIFT step: Update positions by full timestep.
-    
-    Formula: p = p + v * dt
-    """
-    
-    # TODO: Loop through all bodies
-    # for i in range(N):
-    #     Update each position component
-    #     p_x[i] += v_x[i] * dt
-    #     p_y[i] += ?
-    #     p_z[i] += ?
-    
-    pass
+    for i in range(N):
+        p_x[i] += v_x[i] * dt
+        p_y[i] += v_y[i] * dt
+        p_z[i] += v_z[i] * dt
 
 # ============================================
 # MAIN SIMULATION LOOP
@@ -456,33 +412,14 @@ print(f"Number of bodies: {N}")
 print(f"Theta parameter: {theta}")
 print(f"Time step: {dt} seconds")
 
-# TODO: Initial acceleration calculation
-# Must call this once before the loop starts
-# calculate_acceleration()
-
-
-# TODO: Main loop
-# step = 0
-# while draw_gui(p_x, p_y, p_z):
-#     
-#     LEAPFROG INTEGRATION with Barnes-Hut:
-#     1. Kick (half step)
-#     kick()
-#     
-#     2. Drift (full step)
-#     drift()
-#     
-#     3. Calculate acceleration (this rebuilds the tree!)
-#     calculate_acceleration()
-#     
-#     4. Kick (half step)
-#     kick()
-#     
-#     Increment step counter
-#     step += 1
-#     
-#     Print progress every 100 steps
-#     if step % 100 == 0:
-#         print(f"Step {step}")
-
-# print(f"Simulation complete after {step} steps")
+calculate_acceleration()
+step = 0
+while draw_gui(p_x, p_y, p_z):
+    kick()
+    drift()
+    calculate_acceleration()
+    kick()
+    step += 1
+    if step % 100 == 0:
+        print(f"Step{step}")
+print(f"Simulation comp yayyyy")
