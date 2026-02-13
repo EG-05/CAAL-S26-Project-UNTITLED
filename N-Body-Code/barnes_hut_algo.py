@@ -5,13 +5,14 @@ This file implements the O(N log N) Barnes-Hut algorithm using octrees
 
 import math
 import csv
+import time 
 from nbody_visualizer import draw_gui
 
 # ============================================
 # SIMULATION PARAMETERS
 # ============================================
 G = 6.67430e-11  # Gravitational constant
-dt = 8640        # Time step
+dt = 6000000        # Time step
 softening = 1e9  # Softening parameter
 theta = 0.5      # Barnes-Hut opening angle (0.5 = good balance)
 
@@ -221,6 +222,7 @@ def insert_body(node, body_index):
         # -- NO children so no need check if children none
         # NEW internal node
         insert_body(node.children[oct_old], old_body_index)
+        return
     
     
     # CASE 3:  This is an internal node (already, exsitingly )
@@ -231,8 +233,8 @@ def insert_body(node, body_index):
     
     # If child doesn't exist, create it
     if node.children[oct] is None:
-         bounds = node.get_octant_bounds(oct)
-         node.children[oct] = OctreeNode(*bounds)
+        bounds = node.get_octant_bounds(oct)
+        node.children[oct] = OctreeNode(*bounds)
     
     # Recursively insert into the child
     insert_body(node.children[oct], body_index)
@@ -276,6 +278,7 @@ def build_tree():
     z_max += padding
     
     root = OctreeNode(x_min, x_max, y_min, y_max, z_min, z_max)
+    
     for i in range(N):
         insert_body(root, i)
     
@@ -332,7 +335,7 @@ def calculate_force_barnes_hut(node, body_index):
     # Option A: Approximating
     if ratio < theta or (node.is_leaf and node.body_index != -1):
         
-        if node.is_is_leaf and node.body_index == body_index:
+        if node.is_leaf and node.body_index == body_index:
             return 0.0, 0.0, 0.0
          
     # Calculate force using node's total mass at center of mass
@@ -396,10 +399,21 @@ print(f"Time step: {dt} seconds")
 
 calculate_acceleration()
 step = 0
+timing_done = False  # only time once -- CALCULATION purposes 
+
 while draw_gui(p_x, p_y, p_z):
     kick()
     drift()
-    calculate_acceleration()
+    # time just ONE step to get the measurement
+    if step == 1 and not timing_done:
+        start = time.time()
+        calculate_acceleration()
+        end = time.time()
+        print(f"N={N} | Barnes-Hut time: {end - start:.4f}s")
+        timing_done = True
+    else:
+        calculate_acceleration()
+
     kick()
     step += 1
     if step % 100 == 0:
