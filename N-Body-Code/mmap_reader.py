@@ -1,0 +1,33 @@
+import mmap
+import struct
+import time
+from nbody_visualizer import draw_gui
+
+N = 300
+FLOAT_SIZE = 4
+
+with open('shared.mem', 'r+b') as f:
+    mm = mmap.mmap(f.fileno(), 16384)
+    
+    while True:
+        p_x = []
+        p_y = []
+        p_z = []
+        
+        for i in range(N):
+            val = struct.unpack('f', mm[i*FLOAT_SIZE : i*FLOAT_SIZE+FLOAT_SIZE])[0]
+            p_x.append(val)
+        
+        for i in range(N):
+            offset = 1200 + i*FLOAT_SIZE
+            val = struct.unpack('f', mm[offset : offset+FLOAT_SIZE])[0]
+            p_y.append(val)
+        
+        for i in range(N):
+            offset = 2400 + i*FLOAT_SIZE
+            val = struct.unpack('f', mm[offset : offset+FLOAT_SIZE])[0]
+            p_z.append(val)
+        
+        if not draw_gui(p_x, p_y, p_z):
+            break
+        
