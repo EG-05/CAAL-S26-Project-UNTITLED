@@ -8,15 +8,20 @@ FLOAT_SIZE = 4
 FLAG_OFFSET = 4  # byte 0 is flag, data starts at byte 4
 
 with open('shared.mem', 'r+b') as f:
-    mm = mmap.mmap(f.fileno(), 16384)
+    mm = mmap.mmap(f.fileno(), 0)
     
     while True:
+        ## wait until RISC-V sets flag to 1 (done writing)
+        while struct.unpack('B', mm[0:1])[0] == 0:
+            pass
+        
         p_x = []
         p_y = []
         p_z = []
         
         for i in range(N):
-            val = struct.unpack('f', mm[i*FLOAT_SIZE : i*FLOAT_SIZE+FLOAT_SIZE])[0]
+            #val = struct.unpack('f', mm[i*FLOAT_SIZE : i*FLOAT_SIZE+FLOAT_SIZE])[0]
+            val = struct.unpack('f', mm[FLAG_OFFSET + i*FLOAT_SIZE : FLAG_OFFSET + i*FLOAT_SIZE+FLOAT_SIZE])[0]
             p_x.append(val)
         
         for i in range(N):
