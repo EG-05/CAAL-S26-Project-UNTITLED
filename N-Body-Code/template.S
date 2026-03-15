@@ -73,6 +73,12 @@ _start:
     li t0, -1
     beq s0, t0, exit_error
 
+    # ftruncate - set file size to 16384 bytes
+    li a7, 46           # syscall: ftruncate
+    mv a0, s0           # fd
+    li a1, 16384        # size
+    ecall
+
     # Print "3" to show mmap is about to run
     addi sp, sp, -16
     li t0, 51          # ASCII '3'
