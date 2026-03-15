@@ -1,6 +1,17 @@
 .section .data
 .align 2
 
+.globl m
+.globl p_x
+.globl p_y
+.globl p_z
+.globl v_x
+.globl v_y
+.globl v_z
+.globl a_x
+.globl a_y
+.globl a_z
+
 # constants
 .equ n, 300
 .equ dt, 6000000
@@ -55,30 +66,72 @@ a_z:
 .globl main
 
 main:
-    # main loop will go here
+    # # main loop will go here
+    # call kick
+    # call drift
+    # call calculate_acc
+    # call kick
+
+    # li a0, 0        # return code 0
+    # li a7, 93       # exit syscall number
+    # ecall           # call the OS to exit
+
+    main:
+    call load_csv
+    call calculate_acc 
+    call print_acc_debug
     call kick
     call drift
     call calculate_acc
+    call print_acc_debug
     call kick
-
-    li a0, 0        # return code 0
-    li a7, 93       # exit syscall number
-    ecall           # call the OS to exit
+    call print_results
+    li a0, 0
+    li a7, 93
+    ecall
 
 kick:
-    la t0, v_x              # t0 = base address of v_x
-    la t1, a_x
-    la t2, v_y
-    la t3, a_y
-    la t4, v_z
-    la t5, a_z 
-    li s0, 0                # s0 = i = 0 (loop counter)
-    li s1, 300              # s1 = N = 300 (loop limit)
+    # addi sp, sp, -32    # allocate stack space
+    # sd s0, 0(sp)        # save s0
+    # sd s1, 8(sp)        # save s1
+    # sd ra, 16(sp)       # save return address
+
+    # la t0, v_x              # t0 = base address of v_x
+    # la t1, a_x
+    # la t2, v_y
+    # la t3, a_y
+    # la t4, v_z
+    # la t5, a_z 
+    # li s0, 0                # s0 = i = 0 (loop counter)
+    # li s1, 300              # s1 = N = 300 (loop limit)
+    # la t0, dt_val
+    # flw ft0, 0(t0)
+    # la t0, half_val
+    # flw ft1, 0(t0)
+    # fmul.s ft0, ft0, ft1    # ft0 = ft0*ft1
+
+    addi sp, sp, -32
+    sd s0, 0(sp)
+    sd s1, 8(sp)
+    sd ra, 16(sp)
+
+    # load float constants FIRST
     la t0, dt_val
-    flw ft0, 0(t0)
+    flw ft0, 0(t0)          # ft0 = dt
     la t0, half_val
-    flw ft1, 0(t0)
-    fmul.s ft0, ft0, ft1    # ft0 = ft0*ft1
+    flw ft1, 0(t0)          # ft1 = 0.5
+    fmul.s ft0, ft0, ft1    # ft0 = dt * 0.5
+
+    # THEN load array addresses
+    la t0, v_x              # t0 = v_x
+    la t1, a_x              # t1 = a_x
+    la t2, v_y              # t2 = v_y
+    la t3, a_y              # t3 = a_y
+    la t4, v_z              # t4 = v_z
+    la t5, a_z              # t5 = a_z
+
+    li s0, 0
+    li s1, 300
     
 kick_loop:
     bge s0, s1, kick_end    # s0 >= 300, exit
@@ -115,9 +168,18 @@ kick_loop:
     j kick_loop             # repeat
 
 kick_end:
+    ld s0, 0(sp)        # restore s0
+    ld s1, 8(sp)        # restore s1
+    ld ra, 16(sp)       # restore return address
+    addi sp, sp, 32     # free stack space
     ret
 
 drift:
+    addi sp, sp, -32    # allocate stack space
+    sd s0, 0(sp)        # save s0
+    sd s1, 8(sp)        # save s1
+    sd ra, 16(sp)       # save return address
+
     # drift function 
     la t0, p_x          #base address of p_x
     la t1, v_x          #base address of v_x 
@@ -132,9 +194,9 @@ drift:
 
     # load dt * 0.5  for float constant 
     la a0, dt_val
-    flw fa0, 0(a0)
+    flw fa0, 0(a0)        # fa0 = dt
     la a0, half_val
-    flw fa3, 0(a0)
+    flw fa3, 0(a0)        # fa3 = 0.5
     fmul.s fa0, fa0, fa3  # fa0 = dt * 0.5
 
 drift_loop: 
@@ -176,10 +238,26 @@ drift_loop:
     addi t6, t6, 1           # i + + 
     j drift_loop 
 
-drift_done:     
+drift_done:
+    ld s0, 0(sp)        # restore s0
+    ld s1, 8(sp)        # restore s1
+    ld ra, 16(sp)       # restore return address
+    addi sp, sp, 32     # free stack space     
     ret
 
 calculate_acc:
+    addi sp, sp, -80
+    sd s0, 0(sp)
+    sd s1, 8(sp)
+    sd s2, 16(sp)
+    sd s3, 24(sp)
+    sd s4, 32(sp)
+    sd s5, 40(sp)
+    sd s6, 48(sp)
+    sd s7, 56(sp)
+    sd s8, 64(sp)       
+    sd s9, 72(sp)       
+
     la t0, a_x
     la t1, a_y
     la t2, a_z
@@ -321,4 +399,15 @@ inner_end:
     addi s0, s0, 1          # i++
     j outer_loop
 outer_end:
+    ld s0, 0(sp)
+    ld s1, 8(sp)
+    ld s2, 16(sp)
+    ld s3, 24(sp)
+    ld s4, 32(sp)
+    ld s5, 40(sp)
+    ld s6, 48(sp)
+    ld s7, 56(sp)
+    ld s8, 64(sp)       
+    ld s9, 72(sp)       
+    addi sp, sp, 80     
     ret
