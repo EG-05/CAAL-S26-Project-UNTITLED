@@ -5,6 +5,7 @@ from nbody_visualizer import draw_gui
 
 N = 300
 FLOAT_SIZE = 4
+FLAG_OFFSET = 4  # byte 0 is flag, data starts at byte 4
 
 with open('shared.mem', 'r+b') as f:
     mm = mmap.mmap(f.fileno(), 16384)
@@ -27,7 +28,10 @@ with open('shared.mem', 'r+b') as f:
             offset = 2400 + i*FLOAT_SIZE
             val = struct.unpack('f', mm[offset : offset+FLOAT_SIZE])[0]
             p_z.append(val)
-        
+
+        # clear flag — telling RISC-V we're done reading
+        mm[0:1] = struct.pack('B', 0)
+        mm.flush()
+
         if not draw_gui(p_x, p_y, p_z):
             break
-        

@@ -158,6 +158,11 @@ main_loop:
     
     # s1 is the pointer to the memory mapped file, make sure to save it if used for something else
     # to read from the mmap file in python make sure to research the mmap library.
+     # wait until Python clears the flag
+wait_flag:
+    lb t0, 0(s1)
+    bnez t0, wait_flag
+
     addi sp, sp, -16    # save s1 (mmap pointer) before calls
     sd s1, 0(sp)        # s1 might get clobbered by functions
 
@@ -183,19 +188,20 @@ write_loop:
 
     add t6, t0, t5
     flw ft0, 0(t6)
+    li a0, 4            # p_x offset (flag is byte 0)
     add t6, s1, t5
     fsw ft0, 0(t6)
 
     add t6, t1, t5
     flw ft0, 0(t6)
-    li a0, 1200
+    li a0, 1204        # p_y offset
     add t6, s1, a0
     add t6, t6, t5
     fsw ft0, 0(t6)
 
     add t6, t2, t5
     flw ft0, 0(t6)
-    li a0, 2400
+    li a0, 2404         # p_z offset
     add t6, s1, a0
     add t6, t6, t5
     fsw ft0, 0(t6)
@@ -204,6 +210,9 @@ write_loop:
     j write_loop
 
 write_done:
+    # set flag to 1 (RISC-V done writing)
+    li t0, 1
+    sb t0, 0(s1)       #settig flag 1
     j main_loop
 
 kick:
