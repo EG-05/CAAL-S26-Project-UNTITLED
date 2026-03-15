@@ -8,6 +8,7 @@
 filename: .string "shared.mem"
 .include "mydata.S"
 .equ MMAP_SIZE, N*12+8    # make this N*12 + 4 rounded up
+.equ PX_OFFSET, 4        # flag is byte 0, p_x starts at 4
 .equ PY_OFFSET, N*4+4    # p_y starts here
 .equ PZ_OFFSET, N*8+4    # p_z starts here
 .section .text
@@ -151,6 +152,13 @@ _start:
     li a7, 64
     ecall
     addi sp, sp, 16
+
+    addi sp, sp, -16
+    sd s1, 0(sp)
+    call calculate_acc
+    ld s1, 0(sp)
+    addi sp, sp, 16
+
     
 main_loop:
     
@@ -170,7 +178,7 @@ wait_flag:
     addi sp, sp, -16    # save s1 (mmap pointer) before calls
     sd s1, 0(sp)        # s1 might get clobbered by functions
 
-    call calculate_acc
+    # call calculate_acc
     call kick
     call drift
     call calculate_acc
@@ -192,8 +200,9 @@ write_loop:
 
     add t6, t0, t5
     flw ft0, 0(t6)
-    li a0, 4            # p_x offset (flag is byte 0)
-    add t6, s1, t5
+    li a0, PX_OFFSET           # p_x offset (flag is byte 0)
+    add t6, s1, a0         # t6 = mmap_base +4 
+    add t6, t6, t5         # t6 = map_base + 4 + i*4 (no flag offset)
     fsw ft0, 0(t6)
 
     add t6, t1, t5
@@ -307,8 +316,8 @@ drift:
     la a0, dt_val
     flw fa0, 0(a0)        # fa0 = dt
     la a0, half_val
-    flw fa3, 0(a0)        # fa3 = 0.5
-    fmul.s fa0, fa0, fa3  # fa0 = dt * 0.5
+    flw fa3, 0(a0)          # fa3 = 0.5
+    fmul.s fa0, fa0, fa3    # fa0 = dt * 0.5
     li a1, N
 
 drift_loop: 
