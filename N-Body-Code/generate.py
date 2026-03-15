@@ -5,6 +5,7 @@ INPUT_FILE = 'solar300.csv'
 OUTPUT_FILE = 'mydata.S'  # Output assembly file
 N = 300  # Number of particles
 
+
 # storage for columns
 mass = []
 px, py, pz = [], [], []
@@ -51,13 +52,20 @@ def write_block(f, label, data_lists):
         for i in range(0, len(data_list), 5):
             chunk = data_list[i:i+5]
             f.write(f"    .float {', '.join(chunk)}\n")
-
+            
 # --- WRITE THE ASSEMBLY CODE TO FILE ---
 try:
     with open(OUTPUT_FILE, 'w') as f:
         f.write(f"# Generated Data Section for N={N}\n")
+        # f.write(".global G\n")
+        # f.write("G: .float 6.67430e-11\n\n")
+
         f.write(".global G\n")
-        f.write("G: .float 6.67430e-11\n\n")
+        f.write("G: .float 6.67430e-11\n")
+        f.write("dt_val:        .float 8340.0\n")
+        f.write("half_val:      .float 0.5\n")
+        f.write("G_val:         .float 6.67430e-11\n")
+        f.write("softening_val: .float 1000000000.0\n\n")
 
         # 1. Position Grid (Must be X block, then Y block, then Z block)
         write_block(f, "p_x", [px])

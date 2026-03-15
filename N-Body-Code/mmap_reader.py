@@ -25,12 +25,12 @@ with open('shared.mem', 'r+b') as f:
             p_x.append(val)
         
         for i in range(N):
-            offset = 1200 + i*FLOAT_SIZE
+            offset = 1204 + i*FLOAT_SIZE
             val = struct.unpack('f', mm[offset : offset+FLOAT_SIZE])[0]
             p_y.append(val)
         
         for i in range(N):
-            offset = 2400 + i*FLOAT_SIZE
+            offset = 2404 + i*FLOAT_SIZE
             val = struct.unpack('f', mm[offset : offset+FLOAT_SIZE])[0]
             p_z.append(val)
 

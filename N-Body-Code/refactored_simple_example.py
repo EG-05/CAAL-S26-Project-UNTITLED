@@ -5,7 +5,7 @@ from nbody_visualizer import draw_gui
 
 # Simulation parameters
 G = 6.67430e-11  
-dt = 6000000
+dt = 8640
 softening = 1e9
 half_time_step = 0.5
 rows = []

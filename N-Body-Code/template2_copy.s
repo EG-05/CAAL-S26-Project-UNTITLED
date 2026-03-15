@@ -315,9 +315,9 @@ drift:
     # load dt * 0.5  for float constant 
     la a0, dt_val
     flw fa0, 0(a0)        # fa0 = dt
-    la a0, half_val
-    flw fa3, 0(a0)          # fa3 = 0.5
-    fmul.s fa0, fa0, fa3    # fa0 = dt * 0.5
+    # la a0, half_val
+    # flw fa3, 0(a0)          # fa3 = 0.5
+    # fmul.s fa0, fa0, fa3    # fa0 = dt * 0.5
     li a1, N
 
 drift_loop: 
@@ -415,7 +415,7 @@ reset_end:
     flw ft8, 0(t0)
     la t0, softening_val
     flw ft9, 0(t0)
-    fmul.s ft9, ft9, ft9    # softening*softening
+    # fmul.s ft9, ft9, ft9    # softening*softening
     fmv.s ft11, ft9
     li s0, 0                # i = 0
     li s2, N              # N = 300
