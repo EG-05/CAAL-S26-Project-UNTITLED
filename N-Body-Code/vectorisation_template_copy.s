@@ -324,53 +324,42 @@ drift:
     li a1, N
 
 drift_loop: 
-    # TO VECTORIZE THIS LOOP:
-    # ┌─────────────────────────────────────────────┐
-    # │ 1. call vsetvli → get strip size t0          │
-    # │ 2. vle32.v → load strip of v_x into v0      │
-    # │ 3. vfmul.vf → v0 = v0 * fa0 (dt)            │
-    # │ 4. vle32.v → load strip of p_x into v1      │
-    # │ 5. vfadd.vv → v1 = v1 + v0                  │
-    # │ 6. vse32.v → store v1 back to p_x            │
-    # │ 7. advance both pointers by t0*4             │
-    # │ 8. subtract t0 from remaining                │
-    # │ 9. repeat for p_y, p_z                       │
-    # └─────────────────────────────────────────────┘
-    bge t6, a1, drift_done
 
-    slli a2, t6, 2
-    
+    beqz a1, drift_done         #nothing left ? exit 
+
+    vestvli t6, a1, e32, m1, ta, ma     #t6 = how many elements in THIS particular strip 
+
     # p_x[i] += v_x[i] * dt
-    # VECTOR EQUIVALENT: load strip v_x, multiply, add to strip p_x
-    add a3, t1, a2
-    flw fa1, 0(a3)
-    fmul.s fa1, fa1, fa0
-    add a3, t0, a2
-    flw fa2, 0(a3)
-    fadd.s fa2, fa2, fa1
-    fsw fa2, 0(a3)
+    # VECTOR: load strip v_x, multiply, add to strip p_x
+    vle32.v  v0, (t1)               # load strip of v_x 
+    vfmul.vf v0, v0, fa0            # v0 = v_x * dt 
+    vle32.v  v1, (t0)               # load strip of p_x 
+    vfadd.vv v1, v1, v0             # v1 = p_x + (v_x * dt)
+    vse32.v  v1,  (t0)              # store back to p_x 
 
     # p_y[i] += v_y[i] * dt
-    # VECTOR EQUIVALENT: same pattern, y arrays
-    add a3, t3, a2
-    flw fa1, 0(a3)
-    fmul.s fa1, fa1, fa0
-    add a3, t2, a2
-    flw fa2, 0(a3)
-    fadd.s fa2, fa2, fa1
-    fsw fa2, 0(a3)
+    vle32.v v0, (t3)                # load strip v_y 
+    vfmul.vf v0, v0, fa0            # v0 = v_y *dt 
+    vle32.v v1, (t2)                # load strip of p_y
+    vfadd.vv v1, v1, v0             # v1 = p_y + (vy *dt )
+    vse32.vv (t2)                   # store back into p_y
 
     # p_z[i] += v_z[i] * dt
-    # VECTOR EQUIVALENT: same pattern, z arrays
-    add a3, t5, a2
-    flw fa1, 0(a3)
-    fmul.s fa1, fa1, fa0
-    add a3, t4, a2
-    flw fa2, 0(a3)
-    fadd.s fa2, fa2, fa1
-    fsw fa2, 0(a3)
+    vle32.v v0, (t5)                # load strip v_z 
+    vfmul.vf v0, v0, fa0            # v0 = v_z *dt 
+    vle32.v v1, (t4)                # load strip of p_z
+    vfadd.vv v1, v1, v0             # v1 = p_z + (vz *dt )
+    vse32.vv (t4)                   # store back into p_z
 
-    addi t6, t6, 1
+    slli a2, t6, 2          # a2 = t6 * 4 (bytes per strip)
+    add t0, t0, a2          # p_x pointer forward
+    add t1, t1, a2          # v_x pointer forward
+    add t2, t2, a2          # p_y pointer forward
+    add t3, t3, a2          # v_y pointer forward
+    add t4, t4, a2          # p_z pointer forward
+    add t5, t5, a2          # v_z pointer forward
+    
+    sub a1, a1, t6 
     j drift_loop 
 
 drift_done:
