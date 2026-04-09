@@ -160,11 +160,10 @@ wait_flag:
 
 write_loop:
     # VECTORIZATION NOTE:
-    # this write loop can also be vectorized
-    # instead of writing one float at a time to mmap
-    # you could load a strip of p_x into a vector register
+    # load a strip of p_x into a vector register, store 
     # then store the whole strip directly to mmap offset
     # same strip-mining pattern applies here too
+
     bge t3, t4, write_done
     slli t5, t3, 2
 
@@ -197,19 +196,20 @@ write_done:
     sb t0, 0(s1)
     j main_loop
 
+
+
+
 # ═══════════════════════════════════════════════════════════════
 # KICK FUNCTION
-# WHAT IT DOES: v[i] += a[i] * dt_half   for all i
-# WHY VECTORIZABLE: each particle i is completely independent
-#                   v_x[0] doesn't depend on v_x[1] etc.
-# VECTORIZATION PLAN:
-#   - replace scalar loop with strip-mining loop
-#   - load a strip of v_x AND a strip of a_x simultaneously
-#   - do multiply and add on entire strip at once
-#   - store strip back
-#   - repeat for v_y, v_z
-#   - no masking needed, no conditions, pure arithmetic
+# v[i] += a[i] * dt_half
+# vectorisation possible bc eg. v_x[0] & v_x[1] = no dependency
+
+# vectorisation layout: 
+#   - The idea is to replace scalar loop with a strip-mining loop
+#   - strip mining loop = loading strip of v_x and a_x 
+#   - perform operations on whole strip then repeat for v_y, v_z
 # ═══════════════════════════════════════════════════════════════
+
 kick:
 
     addi sp, sp, -32
@@ -217,21 +217,17 @@ kick:
     sd s1, 8(sp)
     sd ra, 16(sp)
 
-    # VECTORIZATION NOTE:
-    # dt_half is a SCALAR — it applies to every element equally
-    # in vector instructions this is called a "scalar broadcast"
-    # vfmul.vf  means: multiply vector by scalar float
-    # ft0 stays as a scalar, no need to put it in a vector register
+    # ft0 & dt_half are scalar 
+    # vfmul.vf  - multiply vector by scalar float
+    
     la t0, dt_val
     flw ft0, 0(t0)          # ft0 = dt
     la t0, half_val
     flw ft1, 0(t0)          # ft1 = 0.5
     fmul.s ft0, ft0, ft1    # ft0 = dt * 0.5
 
-    # VECTORIZATION NOTE:
-    # instead of loading one address and using slli+add to find i
-    # you keep a MOVING POINTER that advances each strip
-    # start it at base of array, advance by t0*4 each iteration
+
+    # no address then slli+add to find i, we use strip mining 
     la t0, v_x
     la t1, a_x
     la t2, v_y
@@ -239,67 +235,51 @@ kick:
     la t4, v_z
     la t5, a_z
 
+
     # VECTORIZATION NOTE:
-    # s0 was the loop counter i=0..N in scalar
-    # in vector version you don't need i at all
-    # instead you track: how many elements are REMAINING
-    # start at N, subtract t0 each strip, stop when 0
-    li s0, 0
-    li s1, N
-    
+    # vector version: track how many elements are remaining 
+    li s0, 0                    # i = 0
+    li s1, N                    # s1 = N
+
+
 kick_loop:
-    # SCALAR: processes 1 particle per iteration
-    # VECTOR:  processes t0 particles per iteration (t0 = up to VLMAX)
-    # 
-    # TO VECTORIZE THIS LOOP:
-    # ┌─────────────────────────────────────────────┐
-    # │ 1. call vsetvli → get t0 = strip size        │
-    # │ 2. vle32.v  → load strip of v_x into v0     │
-    # │ 3. vle32.v  → load strip of a_x into v1     │
-    # │ 4. vfmul.vf → v1 = v1 * ft0 (dt_half)       │
-    # │ 5. vfadd.vv → v0 = v0 + v1                  │
-    # │ 6. vse32.v  → store v0 back to v_x           │
-    # │ 7. advance pointer by t0*4                   │
-    # │ 8. subtract t0 from remaining count          │
-    # │ 9. repeat for v_y, v_z (same pattern)        │
-    # └─────────────────────────────────────────────┘
+
+    # vectors process t0 particles per iteration (t0 = up to VLMAX)
     bge s0, s1, kick_end
-    slli t6, s0, 2
+
+    # strip size
+    sub a2, s1, s0                    # a2 = remaining = N - i
+    vsetvli a2, a2, e32, m1, ta, ma   # a2 = actual vl granted by hardware
+
+    slli t6, s0, 2                   # moving pointers t6 = i * 4
 
     # v_x[i] += a_x[i] * dt_half
-    # VECTOR EQUIVALENT: entire strip in one multiply + add
-    add a0, t0, t6
-    add a1, t1, t6
-    flw fa0, 0(a0)
-    flw fa1, 0(a1)
-    fmul.s fa1, fa1, ft0
-    fadd.s fa0, fa0, fa1
-    fsw fa0, 0(a0)
+
+    add a3, t0, t6                   # a3 = &v_x[i]
+    add a4, t1, t6                   # a4 = &v_x[i]
+    vle32.v v0, (a3)                 # loading strip of v_x into v0 
+    vle32.v v1, (a4)                 # loading strip of a_x into v1
+    vfmacc.vf v0, ft0, v1            # v0[j] += ft0 * v1[j]
+    vse32.v v0, (a3)                 # store back to v_x
+
 
     # v_y[i] += a_y[i] * dt_half
-    # VECTOR EQUIVALENT: same, different vector registers
-    add a0, t2, t6
-    add a1, t3, t6
-    flw fa0, 0(a0)
-    flw fa1, 0(a1)
-    fmul.s fa1, fa1, ft0
-    fadd.s fa0, fa0, fa1
-    fsw fa0, 0(a0)
+    add a3, t2, t6              
+    add a4, t3, t6              
+    vle32.v v0, (a3)            
+    vle32.v v1, (a4)            
+    vfmacc.vf v0, ft0, v1       
+    vse32.v v0, (a3)            
 
     # v_z[i] += a_z[i] * dt_half
-    # VECTOR EQUIVALENT: same, different vector registers
-    add a0, t4, t6
-    add a1, t5, t6
-    flw fa0, 0(a0)
-    flw fa1, 0(a1)
-    fmul.s fa1, fa1, ft0
-    fadd.s fa0, fa0, fa1
-    fsw fa0, 0(a0)
+    add a3, t4, t6              
+    add a4, t5, t6              
+    vle32.v v0, (a3)            
+    vle32.v v1, (a4)            
+    vfmacc.vf v0, ft0, v1       
+    vse32.v v0, (a3)            
 
-    # SCALAR: i++ means next iteration does i+1
-    # VECTOR:  pointer += t0*4 means next iteration starts
-    #          at the next unprocessed element
-    addi s0, s0, 1
+    add s0, s0, a2              # i += vl (not 1, actual granted strip size)
     j kick_loop
 
 kick_end:
@@ -308,6 +288,7 @@ kick_end:
     ld ra, 16(sp)
     addi sp, sp, 32
     ret
+
 
 # ═══════════════════════════════════════════════════════════════
 # DRIFT FUNCTION
