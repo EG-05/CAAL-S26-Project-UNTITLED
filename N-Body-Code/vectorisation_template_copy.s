@@ -327,7 +327,7 @@ drift_loop:
 
     beqz a1, drift_done         #nothing left ? exit 
 
-    vestvli t6, a1, e32, m1, ta, ma     #t6 = how many elements in THIS particular strip 
+    vsetvli t6, a1, e32, m1, ta, ma     #t6 = how many elements in THIS particular strip 
 
     # p_x[i] += v_x[i] * dt
     # VECTOR: load strip v_x, multiply, add to strip p_x
@@ -342,14 +342,14 @@ drift_loop:
     vfmul.vf v0, v0, fa0            # v0 = v_y *dt 
     vle32.v v1, (t2)                # load strip of p_y
     vfadd.vv v1, v1, v0             # v1 = p_y + (vy *dt )
-    vse32.vv (t2)                   # store back into p_y
+    vse32.v v1, (t2)                   # store back into p_y
 
     # p_z[i] += v_z[i] * dt
     vle32.v v0, (t5)                # load strip v_z 
     vfmul.vf v0, v0, fa0            # v0 = v_z *dt 
     vle32.v v1, (t4)                # load strip of p_z
     vfadd.vv v1, v1, v0             # v1 = p_z + (vz *dt )
-    vse32.vv (t4)                   # store back into p_z
+    vse32.v v1, (t4)                   # store back into p_z
 
     slli a2, t6, 2          # a2 = t6 * 4 (bytes per strip)
     add t0, t0, a2          # p_x pointer forward
@@ -368,38 +368,10 @@ drift_done:
     ld ra, 16(sp)
     addi sp, sp, 32
     ret
-
 # ═══════════════════════════════════════════════════════════════
 # CALCULATE_ACC FUNCTION
-# WHAT IT DOES: computes gravitational acceleration for all i
-# WHY HARDER TO VECTORIZE:
-#   1. current code uses Newton's 3rd law (j starts at i+1)
-#      and updates BOTH a[i] and a[j] — this creates a
-#      write dependency, cannot vectorize as-is
-#   2. has an implicit i==j condition to avoid self-force
-#      branches inside vector loops break vectorization
-#
-# RESTRUCTURE NEEDED BEFORE VECTORIZING:
-#   - change inner loop to j = 0..N (not j = i+1)
-#   - only update a[i], not a[j]
-#   - handle i==j with a MASK not a branch
-#
-# VECTORIZATION PLAN (after restructure):
-#   outer loop over i stays SCALAR (one i at a time)
-#   inner loop over j becomes VECTOR:
-#   ┌──────────────────────────────────────────────────┐
-#   │ for fixed i, load a strip of p_x[j..j+t0]        │
-#   │ broadcast p_x[i] as scalar, subtract → strip of dx│
-#   │ same for dy, dz                                   │
-#   │ compute dist_sq, inv_dist3 for whole strip        │
-#   │ generate mask: which lanes have j==i?             │
-#   │   → use vid.v to get [0,1,2,...] j indices        │
-#   │   → compare with scalar i using vmseq.vx          │
-#   │   → this gives a mask register                    │
-#   │ apply mask to zero out self-interaction lanes     │
-#   │ accumulate force contribution into scalar a[i]    │
-#   └──────────────────────────────────────────────────┘
 # ═══════════════════════════════════════════════════════════════
+
 calculate_acc:
     addi sp, sp, -80
     sd s0, 0(sp)
@@ -416,25 +388,22 @@ calculate_acc:
     la t0, a_x
     la t1, a_y
     la t2, a_z
-    li s0, 0
-    li s1, N
-    fmv.w.x ft11, zero
+    # li s0, 0
+    li s0, N
 
-# VECTORIZATION NOTE:
-# this reset loop zeros out a_x, a_y, a_z
-# it is trivially vectorizable — same as kick/drift
-# use vmv.v.x to fill a vector register with 0.0
-# then vse32.v to store whole strip at once
 reset_loop:
-    bge s0, s1, reset_end
-    slli t3, s0, 2
-    add t4, t0, t3
-    fsw ft11, 0(t4)          # a_x[i] = 0.0
-    add t4, t1, t3
-    fsw ft11, 0(t4)          # a_y[i] = 0.0
-    add t4, t2, t3
-    fsw ft11, 0(t4)          # a_z[i] = 0.0
-    addi s0, s0, 1
+    beqz s0, reset_end
+    vsetvli t3, s0, e32, m1, ta, ma
+    vmv.v.x v0, zero
+    vse32.v v0, (t0)
+    vse32.v v0, (t1)
+    vse32.v v0, (t2)
+    slli t4, t3, 2
+    add t0, t0, t4
+    add t1, t1, t4
+    add t2, t2, t4
+    sub s0, s0, t3
+
     j reset_loop
 
 reset_end:
@@ -450,159 +419,110 @@ reset_end:
     flw ft8, 0(t0)
     la t0, softening_val
     flw ft9, 0(t0)
-    fmv.s ft11, ft9
+    fmul.s ft9, ft9, ft9
     li s0, 0
     li s2, N
 
-# VECTORIZATION NOTE:
-# outer loop over i STAYS SCALAR
-# you fix i and vectorize everything inside over j
-# each i iteration: load p_x[i] once as scalar broadcast
-# then the inner loop loads strips of p_x[j], subtracts broadcast
 outer_loop:
     bge s0, s2, outer_end
-    addi s1, s0, 1          # j = i+1  ← THIS MUST CHANGE TO j=0
-                            # for vectorization you need full j=0..N
-                            # so that j indices are contiguous
-                            # and you can use vid.v to track which j==i
+    slli t0, s0, 2
+    add t1, s3, t0
+    flw ft0, 0(t1)
+    flw ft0, 0(t1)
+    add t1, s4, t0
+    flw ft1, 0(t1)
+    add t1, s5, t0
+    flw ft2, 0(t1)
+    add t1, s9, t0
+    flw ft7, 0(t1)
+
+    # fmv.w.x ft3, zero
+    # fmv.w.x ft4, zero
+    # fmv.w.x ft5, zero
+
+    vmv.v.x v8, zero
+    vmv.v.x v9, zero
+    vmv.v.x v10, zero
+
+    # addi s1, s0, 1        
+    li s1, 0                # j = 0
+    mv t2, s3
+    mv t3, s4
+    mv t4, s5
+    mv t5, s9
 
 inner_loop:
-    # SCALAR: processes one (i,j) pair at a time
-    # VECTOR:  processes one i with a STRIP of j at a time
-    #
-    # CURRENT PROBLEM WITH THIS LOOP STRUCTURE:
-    # updates a[j] as well as a[i]
-    # if two strips overlap in their j ranges this causes conflicts
-    # SOLUTION: remove the a[j] updates, only update a[i]
-    # accept the 2x more work, gain clean vectorization
     bge s1, s2, inner_end
+    sub a2, s2, s1
+    vsetvli a2, a2, e32, m1, ta, ma
+    vid.v v7
+    vadd.vx v7, v7, s1
+    vmseq.vx v0, v7, s0
 
-    slli t0, s0, 2
-    slli t1, s1, 2
+    vle32.v v1, (t2)    #dx=p_x[j]-pxi
+    vfsub.vf v1, v1, ft0
 
-    # dx = p_x[j] - p_x[i]
-    # VECTOR: broadcast p_x[i] as scalar
-    #         load strip of p_x[j] into vector register
-    #         vfsub.vf gives you strip of dx in one instruction
-    add t2, s3, t0
-    add t3, s3, t1
-    flw ft0, 0(t2)
-    flw ft3, 0(t3)
-    fsub.s ft0, ft3, ft0
+    vle32.v v2, (t3)    #dx=p_y[j]-pyi
+    vfsub.vf v2, v2, ft1
 
-    # dy, dz: same pattern as dx
-    add t2, s4, t0
-    add t3, s4, t1
-    flw ft1, 0(t2)
-    flw ft3, 0(t3)
-    fsub.s ft1, ft3, ft1
+    vle32.v v3, (t4)    #dx=p_x[j]-pzi
+    vfsub.vf v3, v3, ft2
 
-    add t2, s5, t0
-    add t3, s5, t1
-    flw ft2, 0(t2)
-    flw ft3, 0(t3)
-    fsub.s ft2, ft3, ft2
+    fmv.w.x ft6, zero
+    vmerge.vfm v1, v1, ft6, v0
+    vmerge.vfm v2, v2, ft6, v0
+    vmerge.vfm v3, v3, ft6, v0
 
-    # dist_sq = dx*dx + dy*dy + dz*dz + softening
-    # VECTOR: all of these become element-wise vector ops
-    #         vfmul.vv for squares, vfadd.vv for sums
-    #         vfadd.vf to add scalar softening to whole strip
-    fmul.s ft3, ft0, ft0
-    fmul.s ft4, ft1, ft1
-    fmul.s ft5, ft2, ft2
-    fadd.s ft3, ft3, ft4
-    fadd.s ft3, ft3, ft5
-    fadd.s ft3, ft3, ft11
+    vfmul.vv v4, v1, v1
+    vfmacc.vv v4, v2, v2
+    vfmacc.vv v4, v3, v3
+    vfadd.vf v4, v4, ft9
+    vfsqrt.v v5, v4
+    vfmul.vv v5, v4, v5
+    vfrdiv.vf v5, v5, ft8   #v5=G/dist^3
 
-    # dist, dist_cubed, G/dist_cubed
-    # VECTOR: vfsqrt.v for sqrt on whole strip
-    #         then two vfmul.vv for cubing
-    #         then vfdiv.vf or vfrdiv.vf for G/dist_cubed
-    fsqrt.s ft4, ft3
-    fmul.s ft5, ft4, ft4
-    fmul.s ft5, ft5, ft4
-    fdiv.s ft6, ft8, ft5
+    vfmul.vv v1, v1, v5     # v1 = dx * G/dist^3
+    vfmul.vv v2, v2, v5
+    vfmul.vv v3, v3, v5
 
-    fmul.s ft0, ft6, ft0
-    fmul.s ft1, ft6, ft1
-    fmul.s ft2, ft6, ft2
-    
-    slli t0, s0, 2
-    slli t1, s1, 2
-    add t2, s9, t0
-    add t3, s9, t1
-    flw ft7, 0(t2)          # m[i]
-    flw fa0, 0(t3)          # m[j]
+    vle32.v v6, (t5)
+    vfmul.vv v1, v1, v6     # v1 = fx*m[j]
+    vfmul.vv v2, v2, v6
+    vfmul.vv v3, v3, v6
 
-    # ─────────────────────────────────────────────────
-    # THE i==j MASKING PROBLEM
-    # ─────────────────────────────────────────────────
-    # current code avoids self-interaction by starting j=i+1
-    # in vectorized version j goes 0..N so j WILL equal i
-    # at that point dx=dy=dz=0, dist=0, division by zero!
-    #
-    # SOLUTION — generate a mask:
-    # 1. use vid.v to fill a vector with [j, j+1, j+2, ...]
-    #    (the actual j indices for this strip)
-    # 2. use vmseq.vx to compare each lane with scalar i
-    #    → produces a mask register: 1 where j==i, 0 elsewhere
-    # 3. use this mask with vmerge or masked instructions
-    #    to zero out the contribution from the j==i lane
-    # result: self-interaction lane contributes 0 to a[i]
-    # no branch needed anywhere
-    # ─────────────────────────────────────────────────
+    vmerge.vfm v1, v1, ft6, v0
+    vmerge.vfm v2, v2, ft6, v0
+    vmerge.vfm v3, v3, ft6, v0
 
-    # a_x[i] += fx * m[j]
-    # VECTOR: vfmul.vv strip of fx with strip of m[j]
-    #         then use vfredusum.vs to SUM the whole strip
-    #         into a single scalar, add that to a_x[i]
-    add t4, s6, t0
-    flw ft9, 0(t4)
-    fmul.s ft10, ft0, fa0
-    fadd.s ft9, ft9, ft10
-    fsw ft9, 0(t4)
+    vfredusum.vs v8, v1, v8     # v8[0]+=sum(fx*m[j])
+    vfredusum.vs v9, v2, v9
+    vfredusum.vs v10, v3, v10
 
-    add t4, s7, t0
-    flw ft9, 0(t4)
-    fmul.s ft10, ft1, fa0
-    fadd.s ft9, ft9, ft10
-    fsw ft9, 0(t4)
-
-    add t4, s8, t0
-    flw ft9, 0(t4)
-    fmul.s ft10, ft2, fa0
-    fadd.s ft9, ft9, ft10
-    fsw ft9, 0(t4)
-
-    # a_x[j] -= fx * m[i]
-    # VECTORIZATION NOTE:
-    # THIS ENTIRE BLOCK GOES AWAY in the vector version
-    # you no longer update a[j] inside this loop
-    # each particle's acceleration is computed when i==that particle
-    # 2x more work but no write conflicts, clean vectorization
-    add t4, s6, t1
-    flw ft9, 0(t4)
-    fmul.s ft10, ft0, ft7
-    fsub.s ft9, ft9, ft10
-    fsw ft9, 0(t4)
-
-    add t4, s7, t1          
-    flw ft9, 0(t4)         
-    fmul.s ft10, ft1, ft7   
-    fsub.s ft9, ft9, ft10   
-    fsw ft9, 0(t4) 
-
-    add t4, s8, t1          
-    flw ft9, 0(t4)         
-    fmul.s ft10, ft2, ft7   
-    fsub.s ft9, ft9, ft10   
-    fsw ft9, 0(t4)          
-
-    addi s1, s1, 1
+    slli a3, a2, 2
+    add t2, t2, a3
+    add t3, t3, a3
+    add t4, t4, a3
+    add t5, t5, a3
+    add s1, s1, a2
     j inner_loop
+
 inner_end:
+    vfmv.f.s ft3, v8
+    vfmv.f.s ft4, v9
+    vfmv.f.s ft5, v10
+    fdiv.s ft3, ft3, ft7
+    fdiv.s ft4, ft4, ft7
+    fdiv.s ft5, ft5, ft7
+    slli t0, s0, 2
+    add t1, s6, t0
+    fsw ft3, 0(t1)
+    add t1, s7, t0
+    fsw ft4, 0(t1)
+    add t1, s8, t0
+    fsw ft5, 0(t1)
     addi s0, s0, 1
     j outer_loop
+
 outer_end:
     ld s0, 0(sp)
     ld s1, 8(sp)
