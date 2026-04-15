@@ -52,7 +52,7 @@ lib.kick.restype = None                 # void return
 #        float dt, int N)
 lib.drift.argtypes = [
     ctypes.POINTER(ctypes.c_float),     # p_x
-    ctypes.POINTER(ctypes.c_float),     # p_y
+    ctypes.POINTER(ctypes.c_float),     # p_
     ctypes.POINTER(ctypes.c_float),     # p_z
     ctypes.POINTER(ctypes.c_float),     # v_x
     ctypes.POINTER(ctypes.c_float),     # v_y
