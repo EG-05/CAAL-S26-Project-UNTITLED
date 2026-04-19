@@ -88,5 +88,61 @@ get_octant:
     slli t0, t0, 2
     or   a0, a0, t0             # octant |= bit2
  
+# set_child_bounds (parent, child, octant)
+# a0 = parent (node index)
+# a1 = child (node index)
+# a2 = octant (0-7)
+
+#FOR EACH AXIS, THE CHILD INEHRITS --> (MIN, CENTRE) , or , (CENTRE, MAX) -- depending on octant bit 
+set_child_bounds: 
+    addi, sp, sp, -32 
+    sw s0, 0(sp)
+    sw s1, 4(sp)
+    sw s2, 8(sp)
+    sw s3, 8(sp)
+    sw s4, 12(sp)
+
+    mv s0, a0   # s0 - parent
+    mv s1, a1   # s1 - child     
+    mv s2, a2   # s2 - octant
+
+    # ---BYTE OFFSETS---
+    slli s3, s0, 2      #parent byte offset 
+    la t0, const_half 
+    flw ft0, 0(t0)      #ft0 = 0.5
+
+    #--- X AXIS 
+    la t1, node_xmin
+    la t2, node_xmax
+    add t3, t1, s3      #&node_xmin[parent]
+    flw ft1, 0(t3)      #ft1 = xmin[parent]
+    slli t4, s1, 2 
+    add t5, t2, t3      #&node_xmax[parent]
+    flw ft2, 0(t5)      #ft2 = xmax[parent]
+    fadd.s ft3, ft1, ft2 
+    fmul.s ft3, ft3, ft0    #ft3 = cx
+
+    andi t0, s2, 1      #bit0 of octant 
+    beqz t0, .Lx_Low 
+    # x is in upper half -> child xmin = cx, child xmax = xmax[parent]
+    add t5, t1, t4      #&node_xmin[child]
+    fsw ft3, 0(t5)      #node_xmin[child] = cx
+    add t5, t2, t4      #&node_xmac[child]
+     j    .Lx_done
+     
+.Lx_low:
+    # x is in lower half → child xmin = xmin[parent], child xmax = cx
+    add  t5, t1, t4
+    fsw  ft1, 0(t5)              # node_xmin[child] = xmin[parent]
+    add  t5, t2, t4
+    fsw  ft3, 0(t5)              # node_xmax[child] = cx
+.Lx_done:
+
+# --------Y ++
+
+
+
+
+
 
 
