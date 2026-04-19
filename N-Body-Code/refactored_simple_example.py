@@ -5,7 +5,7 @@ from nbody_visualizer import draw_gui
 
 # Simulation parameters
 G = 6.67430e-11  
-dt = 8640
+dt = 6000
 softening = 1e9
 half_time_step = 0.5
 rows = []
@@ -89,14 +89,22 @@ def kick():
         v_z[i] += a_z[i]*dt*half_time_step
     pass
 
+# def drift():
+#     """Update positions based on velocities"""
+#     "Each drift -> position changes with respect to velocity by half timestep"
+#     for i in range(N): 
+#         p_x[i] += v_x[i]*dt*half_time_step
+#         p_y[i] += v_y[i]*dt*half_time_step
+#         p_z[i] += v_z[i]*dt*half_time_step
+#     pass
+
 def drift():
-    """Update positions based on velocities"""
-    "Each drift -> position changes with respect to velocity by half timestep"
+    """Update positions based on velocities for a FULL timestep"""
     for i in range(N): 
-        p_x[i] += v_x[i]*dt*half_time_step
-        p_y[i] += v_y[i]*dt*half_time_step
-        p_z[i] += v_z[i]*dt*half_time_step
-    pass
+        # Positions move by v * dt
+        p_x[i] += v_x[i] * dt
+        p_y[i] += v_y[i] * dt
+        p_z[i] += v_z[i] * dt
 
 
 # time it once before the loop starts
@@ -115,3 +123,7 @@ while draw_gui(p_x, p_y, p_z):
     drift()
     calculate_acceleration()
     kick()
+    print(f"Body 0: px={p_x[0]:.6f} vx={v_x[0]:.6f} ax={a_x[0]:.6f}")
+    print(f"Body 1: px={p_x[1]:.6f} vx={v_x[1]:.6f} ax={a_x[1]:.6f}")
+    print(f"Body 2: px={p_x[2]:.6f} vx={v_x[2]:.6f} ax={a_x[2]:.6f}")
+exit()
