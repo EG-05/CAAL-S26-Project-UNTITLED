@@ -469,9 +469,9 @@ inner_loop:
     vfsub.vf v3, v3, ft2
 
     fmv.w.x ft6, zero
-    vmerge.vfm v1, v1, ft6, v0
-    vmerge.vfm v2, v2, ft6, v0
-    vmerge.vfm v3, v3, ft6, v0
+    vfmerge.vfm v1, v1, ft6, v0
+    vfmerge.vfm v2, v2, ft6, v0
+    vfmerge.vfm v3, v3, ft6, v0
 
     vfmul.vv v4, v1, v1
     vfmacc.vv v4, v2, v2
@@ -490,9 +490,9 @@ inner_loop:
     vfmul.vv v2, v2, v6
     vfmul.vv v3, v3, v6
 
-    vmerge.vfm v1, v1, ft6, v0
-    vmerge.vfm v2, v2, ft6, v0
-    vmerge.vfm v3, v3, ft6, v0
+    vfmerge.vfm v1, v1, ft6, v0
+    vfmerge.vfm v2, v2, ft6, v0
+    vfmerge.vfm v3, v3, ft6, v0
 
     vfredusum.vs v8, v1, v8     # v8[0]+=sum(fx*m[j])
     vfredusum.vs v9, v2, v9
@@ -510,9 +510,9 @@ inner_end:
     vfmv.f.s ft3, v8
     vfmv.f.s ft4, v9
     vfmv.f.s ft5, v10
-    fdiv.s ft3, ft3, ft7
-    fdiv.s ft4, ft4, ft7
-    fdiv.s ft5, ft5, ft7
+    # fdiv.s ft3, ft3, ft7
+    # fdiv.s ft4, ft4, ft7
+    # fdiv.s ft5, ft5, ft7
     slli t0, s0, 2
     add t1, s6, t0
     fsw ft3, 0(t1)
